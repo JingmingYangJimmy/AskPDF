@@ -1,70 +1,162 @@
-# Getting Started with Create React App
+# AskPDF (Next AI)
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+AskPDF lets you upload a PDF and ask natural-language questions about its content. It uses Retrieval-Augmented Generation (RAG) powered by LangChain and OpenAI to find relevant passages and generate concise answers. The UI supports both text and voice-driven conversations.
 
-## Available Scripts
+## What this project does
 
-In the project directory, you can run:
+- Drag-and-drop PDF upload (client) → stored on the Node/Express server
+- Splits the PDF into chunks, embeds them with OpenAI embeddings, and stores them in an in-memory vector store (server)
+- Runs a RetrievalQA chain with `gpt` to answer your question using the most relevant chunks
+- Chat mode with speech-to-text (question) and text-to-speech (answer)
 
-### `npm start`
+## Tech stack
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+- Frontend: React 18, Ant Design, axios, react-speech-recognition, speak-tts
+- Backend: Node.js/Express, multer (file upload), pdf-parse via LangChain `PDFLoader`, LangChain (text splitter, embeddings, vector store, RetrievalQA)
+- LLM/Embeddings: OpenAI (ChatOpenAI + OpenAIEmbeddings)
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Architecture overview
 
-### `npm test`
+1. User uploads a PDF from the React app (`PdfUploader`) to `POST /upload`.
+2. Server stores it under `server/uploads/` and remembers the latest uploaded file path.
+3. When the user asks a question (`ChatComponent` → `GET /chat?question=...`), the server:
+   - Loads the PDF with LangChain `PDFLoader`
+   - Splits the content into chunks (size 500, overlap 0) via `RecursiveCharacterTextSplitter`
+   - Creates embeddings with `OpenAIEmbeddings` and stores them in a `MemoryVectorStore`
+   - Uses `RetrievalQAChain` + `ChatOpenAI` with a concise-answer prompt
+   - Returns the answer text
+4. If Chat Mode is ON, the client speaks the answer back via `speak-tts` and resumes listening.
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+Note: The vector store is created fresh per question and is in-memory only. This is simple and great for demos, but not optimized for large PDFs or repeated queries.
 
-### `npm run build`
+## Project structure
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+```
+AskPDF/
+├── public/                # CRA public assets
+├── server/                # Node/Express backend
+│   ├── server.js          # Express app, file upload and chat endpoints
+│   ├── chat.js            # LangChain pipeline (PDF → chunks → embeddings → QA)
+│   ├── uploads/           # Saved PDFs
+│   └── package.json
+├── src/                   # React frontend
+│   ├── App.js             # Shell layout, wires uploader, chat, and Q/A render
+│   ├── components/
+│   │   ├── PdfUploader.js # Drag-and-drop uploader (AntD Dragger)
+│   │   ├── ChatComponent.js# Search bar, chat mode, speech in/out
+│   │   └── RenderQA.js    # Conversation transcript UI
+│   └── index.js
+├── package.json           # Root scripts (client + dev orchestration)
+└── README.md
+```
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+### Install dependencies
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+In the project root and in the `server` folder:
 
-### `npm run eject`
+```bash
+# at project root
+npm install
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+# in the server folder
+cd server && npm install
+```
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+### Environment variables
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+Create two `.env` files (one for the server, one for the client):
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+1. `server/.env`
 
-## Learn More
+```
+# OpenAI API key used by the server-side LangChain pipeline
+REACT_APP_OPENAI_API_KEY=sk-...your-key...
+```
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+2. Project root `.env` (used by the React app):
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+```
+# Where the client should call your backend
+REACT_APP_DOMAIN=http://localhost:5001
+```
 
-### Code Splitting
+Important:
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+- The server currently reads the OpenAI key from `process.env.REACT_APP_OPENAI_API_KEY` (matching the code in `server/chat.js`).
+- Do not commit your `.env` files.
 
-### Analyzing the Bundle Size
+### Run the app (client + server)
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+From the project root, run both concurrently:
 
-### Making a Progressive Web App
+```bash
+npm run dev
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+This starts:
 
-### Advanced Configuration
+- React app at http://localhost:3000
+- Express server at http://localhost:5001
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
+## API
 
-### Deployment
+### POST /upload
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
+Uploads a PDF to the server.
 
-### `npm run build` fails to minify
+- Content-Type: `multipart/form-data`
+- Field name: `file`
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+Response: plain text file path (example: `uploads/my.pdfupload successfully.`)
+
+### GET /chat
+
+Asks a question about the last uploaded PDF.
+
+Query params:
+
+- `question` (string) – the user’s question
+
+Response: plain text answer string
+
+## Key components
+
+- `src/components/PdfUploader.js` – AntD Dragger component; posts the file to `${REACT_APP_DOMAIN}/upload`.
+- `src/components/ChatComponent.js` – Text input and Chat Mode toggle. In Chat Mode it uses:
+  - `react-speech-recognition` for microphone input
+  - `speak-tts` to read answers aloud and resume listening
+- `src/components/RenderQA.js` – Renders the Q/A transcript and a loading spinner.
+- `server/chat.js` – LangChain pipeline using `PDFLoader`, `RecursiveCharacterTextSplitter`, `OpenAIEmbeddings`, `MemoryVectorStore`, and `RetrievalQAChain` with a concise-answer prompt.
+- `server/server.js` – Express app with `/upload` and `/chat` endpoints; last uploaded file path is used for all subsequent questions.
+
+## Limitations and notes
+
+- In-memory only: Embeddings and vector store are recreated on each `/chat` call. For better performance, consider a persistent vector DB (e.g., Pinecone, FAISS on disk) and caching.
+- Single-file focus: The server keeps a single global `filePath` (last uploaded file). Multi-user support would need per-user/session isolation.
+- Model and costs: Uses `gpt-3.5-turbo` and OpenAI embeddings; API usage incurs cost and must respect rate limits.
+- Security: No auth or file validation; don’t expose as-is to the public internet. Validate uploads and sanitize paths for production.
+- Environment var naming: The server expects `REACT_APP_OPENAI_API_KEY`. You may refactor to `OPENAI_API_KEY` on the server side later.
+
+## Troubleshooting
+
+- 404/Network errors from the client:
+  - Ensure `REACT_APP_DOMAIN` points to your running server (default `http://localhost:5001`).
+  - Confirm the server started without errors.
+- OpenAI auth errors:
+  - Verify the API key in `server/.env` and that your account has quota.
+- Microphone not working in Chat Mode:
+  - Check site permissions for microphone access in your browser.
+- Large PDFs feel slow:
+  - Each question rebuilds embeddings. Consider persistent embeddings, larger chunk sizes, or server-side caching.
+
+## Ideas for improvements
+
+- Persist embeddings to a vector DB and reuse across questions
+- Support multiple PDFs and per-user sessions
+- Streaming answers and token-by-token UI
+- Document and handle non-PDF uploads gracefully
+- Add auth and rate limiting
+
+---
+
+This project started from Create React App, then extended into a small RAG demo named “Next AI / AskPDF.”
