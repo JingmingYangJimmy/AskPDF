@@ -50,41 +50,6 @@ AskPDF/
 └── README.md
 ```
 
-### Install dependencies
-
-In the project root and in the `server` folder:
-
-```bash
-# at project root
-npm install
-
-# in the server folder
-cd server && npm install
-```
-
-### Environment variables
-
-Create two `.env` files (one for the server, one for the client):
-
-1. `server/.env`
-
-```
-# OpenAI API key used by the server-side LangChain pipeline
-REACT_APP_OPENAI_API_KEY=sk-...your-key...
-```
-
-2. Project root `.env` (used by the React app):
-
-```
-# Where the client should call your backend
-REACT_APP_DOMAIN=http://localhost:5001
-```
-
-Important:
-
-- The server currently reads the OpenAI key from `process.env.REACT_APP_OPENAI_API_KEY` (matching the code in `server/chat.js`).
-- Do not commit your `.env` files.
-
 ### Run the app (client + server)
 
 From the project root, run both concurrently:
@@ -129,26 +94,6 @@ Response: plain text answer string
 - `server/chat.js` – LangChain pipeline using `PDFLoader`, `RecursiveCharacterTextSplitter`, `OpenAIEmbeddings`, `MemoryVectorStore`, and `RetrievalQAChain` with a concise-answer prompt.
 - `server/server.js` – Express app with `/upload` and `/chat` endpoints; last uploaded file path is used for all subsequent questions.
 
-## Limitations and notes
-
-- In-memory only: Embeddings and vector store are recreated on each `/chat` call. For better performance, consider a persistent vector DB (e.g., Pinecone, FAISS on disk) and caching.
-- Single-file focus: The server keeps a single global `filePath` (last uploaded file). Multi-user support would need per-user/session isolation.
-- Model and costs: Uses `gpt-3.5-turbo` and OpenAI embeddings; API usage incurs cost and must respect rate limits.
-- Security: No auth or file validation; don’t expose as-is to the public internet. Validate uploads and sanitize paths for production.
-- Environment var naming: The server expects `REACT_APP_OPENAI_API_KEY`. You may refactor to `OPENAI_API_KEY` on the server side later.
-
-## Troubleshooting
-
-- 404/Network errors from the client:
-  - Ensure `REACT_APP_DOMAIN` points to your running server (default `http://localhost:5001`).
-  - Confirm the server started without errors.
-- OpenAI auth errors:
-  - Verify the API key in `server/.env` and that your account has quota.
-- Microphone not working in Chat Mode:
-  - Check site permissions for microphone access in your browser.
-- Large PDFs feel slow:
-  - Each question rebuilds embeddings. Consider persistent embeddings, larger chunk sizes, or server-side caching.
-
 ## Ideas for improvements
 
 - Persist embeddings to a vector DB and reuse across questions
@@ -156,7 +101,3 @@ Response: plain text answer string
 - Streaming answers and token-by-token UI
 - Document and handle non-PDF uploads gracefully
 - Add auth and rate limiting
-
----
-
-This project started from Create React App, then extended into a small RAG demo named “Next AI / AskPDF.”
